@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>⚽ Pênaltis Pixel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        canvas {
+            border: 3px solid #e94560;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            max-width: 100vw;
+            max-height: 100vh;
+            touch-action: none;
+        }
+
+        #menuContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f3460, #1a1a2e, #16213e);
+            z-index: 10;
+            padding: 10px;
+        }
+
+        #menuContainer.hidden {
+            display: none;
+        }
+
+        .menu-title {
+            font-size: clamp(24px, 5vw, 48px);
+            color: #e94560;
+            text-shadow: 3px 3px 0px #533483;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .menu-subtitle {
+            font-size: clamp(12px, 2.5vw, 18px);
+            color: #eee;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .team-selection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+            max-width: 600px;
+        }
+
+        .team-section {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #533483;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 250px;
+            flex: 1;
+        }
+
+        .team-section h3 {
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: clamp(14px, 2.5vw, 18px);
+        }
+
+        .country-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .country-btn {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            color: #eee;
+            padding: 8px 4px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: clamp(10px, 1.8vw, 14px);
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .country-btn:hover {
+            background: #533483;
+            transform: scale(1.05);
+        }
+
+        .country-btn.selected {
+            background: #e94560;
+            border-color: #fff;
+            transform: scale(1.08);
+        }
+
+        #startBtn {
+            background: linear-gradient(45deg, #e94560, #533483);
+            color: white;
+            border: 3px solid #fff;
+            padding: 15px 50px;
+            font-size: clamp(16px, 3vw, 24px);
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+            letter-spacing: 2px;
+        }
+
+        #startBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.5);
+        }
+
+        #startBtn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .ball-emoji {
+            font-size: clamp(40px, 8vw, 70px);
+            margin-bottom: 10px;
+            animation: bounce 1s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-15px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="menuContainer">
+    <div class="ball-emoji">⚽</div>
+    <div class="menu-title">PÊNALTIS PIXEL</div>
+    <div class="menu-subtitle">Escolha seu país e o adversário!</div>
+
+    <div class="team-selection">
+        <div class="team-section">
+            <h3>🏠 SEU TIME</h3>
+            <div class="country-grid" id="playerTeamGrid"></div>
+        </div>
+        <div class="team-section">
+            <h3>👊 ADVERSÁRIO</h3>
+            <div class="country-grid" id="opponentTeamGrid"></div>
+        </div>
+    </div>
+
+    <button id="startBtn" disabled onclick="startGame()">JOGAR ⚽</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+// ==================== DADOS DOS PAÍSES ====================
+const COUNTRIES = [
+    { name: "Brasil", code: "BRA", flag: "🇧🇷", colors: { primary: "#009c3b", secondary: "#ffdf00", skin: "#c68642" }},
+    { name: "Argentina", code: "ARG", flag: "🇦🇷", colors: { primary: "#75aadb", secondary: "#ffffff", skin: "#f1c27d" }},
+    { name: "Alemanha", code: "ALE", flag: "🇩🇪", colors: { primary: "#ffffff", secondary: "#000000", skin: "#f5d6ba" }},
+    { name: "França", code: "FRA", flag: "🇫🇷", colors: { primary: "#002395", secondary: "#ffffff", skin: "#8d5524" }},
+    { name: "Espanha", code: "ESP", flag: "🇪🇸", colors: { primary: "#c60b1e", secondary: "#ffc400", skin: "#f1c27d" }},
+    { name: "Itália", code: "ITA", flag: "🇮🇹", colors: { primary: "#0066b2", secondary: "#ffffff", skin: "#f5d6ba" }},
+    { name: "Portugal", code: "POR", flag: "🇵🇹", colors: { primary: "#006600", secondary: "#ff0000", skin: "#f1c27d" }},
+    { name: "Inglaterra", code: "ING", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", colors: { primary: "#ffffff", secondary: "#cf081f", skin: "#f5d6ba" }},
+    { name: "Holanda", code: "HOL", flag: "🇳🇱", colors: { primary: "#ff6600", secondary: "#ffffff", skin: "#f5d6ba" }},
+    { name: "Uruguai", code: "URU", flag: "🇺🇾", colors: { primary: "#5cacee", secondary: "#ffffff", skin: "#f1c27d" }},
+    { name: "Japão", code: "JAP", flag: "🇯🇵", colors: { primary: "#000080", secondary: "#ffffff", skin: "#f5d6ba" }},
+    { name: "México", code: "MEX", flag: "🇲🇽", colors: { primary: "#006847", secondary: "#ffffff", skin: "#c68642" }},
+    { name: "Croácia", code: "CRO", flag: "🇭🇷", colors: { primary: "#ff0000", secondary: "#ffffff", skin: "#f5d6ba" }},
+    { name: "Bélgica", code: "BEL", flag: "🇧🇪", colors: { primary: "#ff0000", secondary: "#000000", skin: "#8d5524" }},
+    { name: "Colômbia", code: "COL", flag: "🇨🇴", colors: { primary: "#fcd116", secondary: "#003893", skin: "#c68642" }},
+    { name: "Coreia", code: "KOR", flag: "🇰🇷", colors: { primary: "#ff0000", secondary: "#ffffff", skin: "#f5d6ba" }},
+];
+
+let playerTeam = null;
+let opponentTeam = null;
+
+// ==================== MENU ====================
+function buildMenu() {
+    const pGrid = document.getElementById('playerTeamGrid');
+    const oGrid = document.getElementById('opponentTeamGrid');
+
+    COUNTRIES.forEach((c, i) => {
+        // Player button
+        const pb = document.createElement('button');
+        pb.className = 'country-btn';
+        pb.innerHTML = `${c.flag}<br>${c.code}`;
+        pb.onclick = () => selectTeam('player', i);
+        pb.id = `p_${i}`;
+        pGrid.appendChild(pb);
+
+        // Opponent button
+        const ob = document.createElement('button');
+        ob.className = 'country-btn';
+        ob.innerHTML = `${c.flag}<br>${c.code}`;
+        ob.onclick = () => selectTeam('opponent', i);
+        ob.id = `o_${i}`;
+        oGrid.appendChild(ob);
+    });
+}
+
+function selectTeam(type, index) {
+    const prefix = type === 'player' ? 'p_' : 'o_';
+    // Remove selection from all in this group
+    COUNTRIES.forEach((_, i) => {
+        document.getElementById(`${prefix}${i}`).classList.remove('selected');
+    });
+    document.getElementById(`${prefix}${index}`).classList.add('selected');
+
+    if (type === 'player') playerTeam = COUNTRIES[index];
+    else opponentTeam = COUNTRIES[index];
+
+    document.getElementById('startBtn').disabled = !(playerTeam && opponentTeam);
+}
+
+buildMenu();
+
+// ==================== GAME ====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game dimensions
+const BASE_W = 480;
+const BASE_H = 640;
+let scale = 1;
+
+function resizeCanvas() {
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight;
+    const ratio = BASE_W / BASE_H;
+
+    let w, h;
+    if (maxW / maxH < ratio) {
+        w = maxW;
+        h = maxW / ratio;
+    } else {
+        h = maxH;
+        w = maxH * ratio;
+    }
+
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = BASE_W;
+    canvas.height = BASE_H;
+    scale = BASE_W / w;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Game State
+const GAME_STATES = {
+    MENU: 0,
+    PLAYER_KICK: 1,       // Player chooses where to kick
+    PLAYER_KICK_ANIM: 2,  // Ball animation
+    PLAYER_SAVE: 3,       // Player is goalkeeper
+    PLAYER_SAVE_ANIM: 4,  // Opponent kick animation
+    ROUND_RESULT: 5,      // Show result
+    GAME_OVER: 6
+};
+
+let state = GAME_STATES.MENU;
+let round = 1;
+let maxRounds = 5;
+let playerScore = 0;
+let opponentScore = 0;
+let playerKicksCount = 0;
+let opponentKicksCount = 0;
+let isPlayerKicking = true; // true = player kicks first in the round
+
+// Kick/Save positions: 0=left, 1=center, 2=right (x3 top/bottom = 6 zones, simplified to 6)
+// We'll use 6 zones: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right
+const ZONES = [
+    { x: 145, y: 185, label: "CE" },  // top-left
+    { x: 240, y: 175, label: "CC" },  // top-center
+    { x: 335, y: 185, label: "CD" },  // top-right
+    { x: 155, y: 255, label: "BE" },  // bottom-left
+    { x: 240, y: 250, label: "BC" },  // bottom-center
+    { x: 325, y: 255, label: "BD" },  // bottom-right
+];
+
+let selectedZone = -1;
+let aiZone = -1;
+let ballX, ballY;
+let ballTargetX, ballTargetY;
+let ballStartX, ballStartY;
+let ballAnim = 0;
+let ballAnimSpeed = 0.04;
+let goalKeeper = { x: 240, y: 220, targetX: 240, targetY: 220 };
+let kicker = { x: 240, y: 480 };
+let showResult = "";
+let resultTimer = 0;
+let particles = [];
+let goalFlash = 0;
+let missAnim = 0;
+
+// History for display
+let kickHistory = []; // { round, kicker: 'player'|'opponent', scored: bool }
+
+// Extra rounds (sudden death)
+let suddenDeath = false;
+let suddenDeathRound = 0;
+
+// Click/touch zones for the goal area
+let clickZones = [];
+
+function calculateClickZones() {
+    // Goal area on screen
+    // The goal posts are at roughly x: 130 to 350, y: 160 to 270
+    const goalLeft = 130;
+    const goalRight = 350;
+    const goalTop = 160;
+    const goalBottom = 270;
+    const midX = (goalLeft + goalRight) / 2;
+    const midY = (goalTop + goalBottom) / 2;
+
+    clickZones = [
+        { x1: goalLeft, y1: goalTop, x2: midX - 15, y2: midY, zone: 0 },
+        { x1: midX - 15, y1: goalTop, x2: midX + 15, y2: midY, zone: 1 },
+        { x1: midX + 15, y1: goalTop, x2: goalRight, y2: midY, zone: 2 },
+        { x1: goalLeft, y1: midY, x2: midX - 15, y2: goalBottom, zone: 3 },
+        { x1: midX - 15, y1: midY, x2: midX + 15, y2: goalBottom, zone: 4 },
+        { x1: midX + 15, y1: midY, x2: goalRight, y2: goalBottom, zone: 5 },
+    ];
+}
+
+calculateClickZones();
+
+// Also zones at bottom for goalkeeper mode (arrows/buttons)
+let saveZones = [];
+function calculateSaveZones() {
+    // 6 buttons at bottom of screen
+    const bw = 70;
+    const bh = 50;
+    const startX = 30;
+    const startY = 490;
+    const gap = 5;
+
+    saveZones = [];
+    for (let i = 0; i < 3; i++) {
+        saveZones.push({
+            x1: startX + i * (bw + gap),
+            y1: startY,
+            x2: startX + i * (bw + gap) + bw,
+            y2: startY + bh,
+            zone: i,
+            label: ["⬅️ Cima", "⬆️ Cima", "➡️ Cima"][i]
+        });
+    }
+    for (let i = 0; i < 3; i++) {
+        saveZones.push({
+            x1: startX + i * (bw + gap),
+            y1: startY + bh + gap,
+            x2: startX + i * (bw + gap) + bw,
+            y2: startY + bh + gap + bh,
+            zone: i + 3,
+            label: ["⬅️ Baixo", "⬇️ Baixo", "➡️ Baixo"][i]
+        });
+    }
+}
+calculateSaveZones();
+
+function startGame() {
+    document.getElementById('menuContainer').classList.add('hidden');
+    state = GAME_STATES.PLAYER_KICK;
+    round = 1;
+    playerScore = 0;
+    opponentScore = 0;
+    playerKicksCount = 0;
+    opponentKicksCount = 0;
+    isPlayerKicking = true;
+    selectedZone = -1;
+    kickHistory = [];
+    suddenDeath = false;
+    suddenDeathRound = 0;
+    resetPositions();
+    gameLoop();
+}
+
+function resetPositions() {
+    ballX = 240;
+    ballY = 470;
+    ballAnim = 0;
+    goalKeeper.x = 240;
+    goalKeeper.y = 225;
+    goalKeeper.targetX = 240;
+    goalKeeper.targetY = 225;
+    kicker.x = 240;
+    kicker.y = 480;
+    selectedZone = -1;
+    aiZone = -1;
+    particles = [];
+    goalFlash = 0;
+    missAnim = 0;
+}
+
+// AI logic
+function aiChooseZone() {
+    return Math.floor(Math.random() * 6);
+}
+
+// ==================== INPUT ====================
+function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    if (e.touches) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+    return {
+        x: (clientX - rect.left) * scale,
+        y: (clientY - rect.top) * scale
+    };
+}
+
+function handleInput(e) {
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+
+    if (state === GAME_STATES.PLAYER_KICK) {
+        // Check if clicked on a goal zone
+        for (const cz of clickZones) {
+            if (pos.x >= cz.x1 && pos.x <= cz.x2 && pos.y >= cz.y1 && pos.y <= cz.y2) {
+                selectedZone = cz.zone;
+                executePlayerKick();
+                return;
+            }
+        }
+        // Also check the bottom buttons
+        for (const sz of saveZones) {
+            if (pos.x >= sz.x1 && pos.x <= sz.x2 && pos.y >= sz.y1 && pos.y <= sz.y2) {
+                selectedZone = sz.zone;
+                executePlayerKick();
+                return;
+            }
+        }
+    } else if (state === GAME_STATES.PLAYER_SAVE) {
+        // Check save zone buttons
+        for (const sz of saveZones) {
+            if (pos.x >= sz.x1 && pos.x <= sz.x2 && pos.y >= sz.y1 && pos.y <= sz.y2) {
+                selectedZone = sz.zone;
+                executeOpponentKick();
+                return;
+            }
+        }
+        // Also check goal zones
+        for (const cz of clickZones) {
+            if (pos.x >= cz.x1 && pos.x <= cz.x2 && pos.y >= cz.y1 && pos.y <= cz.y2) {
+                selectedZone = cz.zone;
+                executeOpponentKick();
+                return;
+            }
+        }
+    } else if (state === GAME_STATES.ROUND_RESULT || state === GAME_STATES.GAME_OVER) {
+        if (resultTimer <= 0) {
+            if (state === GAME_STATES.GAME_OVER) {
+                // Back to menu
+                document.getElementById('menuContainer').classList.remove('hidden');
+                state = GAME_STATES.MENU;
+                return;
+            }
+            advanceRound();
+        }
+    }
+}
+
+canvas.addEventListener('mousedown', handleInput);
+canvas.addEventListener('touchstart', handleInput);
+
+function executePlayerKick() {
+    aiZone = aiChooseZone(); // AI goalkeeper chooses
+    ballStartX = 240;
+    ballStartY = 470;
+    ballTargetX = ZONES[selectedZone].x;
+    ballTargetY = ZONES[selectedZone].y;
+    ballAnim = 0;
+
+    // Move AI goalkeeper
+    goalKeeper.targetX = ZONES[aiZone].x;
+    goalKeeper.targetY = ZONES[aiZone].y;
+
+    state = GAME_STATES.PLAYER_KICK_ANIM;
+}
+
+function executeOpponentKick() {
+    aiZone = aiChooseZone(); // AI kicker chooses where to kick
+    ballStartX = 240;
+    ballStartY = 470;
+    ballTargetX = ZONES[aiZone].x;
+    ballTargetY = ZONES[aiZone].y;
+    ballAnim = 0;
+
+    // Move player goalkeeper to selected zone
+    goalKeeper.targetX = ZONES[selectedZone].x;
+    goalKeeper.targetY = ZONES[selectedZone].y;
+
+    state = GAME_STATES.PLAYER_SAVE_ANIM;
+}
+
+function checkGoal(kickZone, saveZone) {
+    // Goal if zones are different, or both center but with some randomness
+    if (kickZone === saveZone) {
+        // Saved! But 20% chance the keeper still misses (ball too strong)
+        return Math.random() < 0.2;
+    }
+    // Check adjacent zones (partial save chance)
+    const adjacent = {
+        0: [1, 3], 1: [0, 2, 4], 2: [1, 5],
+        3: [0, 4], 4: [1, 3, 5], 5: [2, 4]
+    };
+    if (adjacent[kickZone].includes(saveZone)) {
+        // Adjacent: 15% save chance
+        return Math.random() > 0.15;
+    }
+    return true; // Goal!
+}
+
+function showRoundResult(scored, isPlayerTheKicker) {
+    if (isPlayerTheKicker) {
+        if (scored) {
+            playerScore++;
+            showResult = "⚽ GOOOL!";
+            spawnGoalParticles();
+            goalFlash = 30;
+        } else {
+            showResult = "❌ DEFENDEU!";
+            missAnim = 30;
+        }
+        playerKicksCount++;
+        kickHistory.push({ round, kicker: 'player', scored });
+    } else {
+        if (scored) {
+            opponentScore++;
+            showResult = "😞 GOAL DELES!";
+            goalFlash = 30;
+        } else {
+            showResult = "🧤 DEFESA!";
+            spawnSaveParticles();
+            missAnim = 30;
+        }
+        opponentKicksCount++;
+        kickHistory.push({ round, kicker: 'opponent', scored });
+    }
+    state = GAME_STATES.ROUND_RESULT;
+    resultTimer = 90;
+}
+
+function spawnGoalParticles() {
+    for (let i = 0; i < 30; i++) {
+        particles.push({
+            x: ballTargetX,
+            y: ballTargetY,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            life: 60 + Math.random() * 30,
+            color: Math.random() > 0.5 ? '#ffdf00' : '#e94560',
+            size: 2 + Math.random() * 4
+        });
+    }
+}
+
+function spawnSaveParticles() {
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            x: goalKeeper.targetX,
+            y: goalKeeper.targetY,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            life: 40 + Math.random() * 20,
+            color: Math.random() > 0.5 ? '#00ff88' : '#00aaff',
+            size: 2 + Math.random() * 3
+        });
+    }
+}
+
+function advanceRound() {
+    if (isPlayerKicking) {
+        // Now opponent kicks (player saves)
+        isPlayerKicking = false;
+        resetPositions();
+        state = GAME_STATES.PLAYER_SAVE;
+    } else {
+        // Round complete, check if game should end
+        isPlayerKicking = true;
+        round++;
+
+        if (!suddenDeath) {
+            // Check if game can be decided early
+            const playerKicksLeft = maxRounds - playerKicksCount;
+            const opponentKicksLeft = maxRounds - opponentKicksCount;
+
+            if (playerKicksCount >= maxRounds && opponentKicksCount >= maxRounds) {
+                if (playerScore !== opponentScore) {
+                    endGame();
+                    return;
+                } else {
+                    // Sudden death
+                    suddenDeath = true;
+                    suddenDeathRound = 0;
+                }
+            } else if (playerKicksCount >= maxRounds && opponentKicksCount >= maxRounds) {
+                if (playerScore !== opponentScore) {
+                    endGame();
+                    return;
+                }
+            }
+
+            // Can't catch up check
+            if (playerScore > opponentScore + opponentKicksLeft && opponentKicksLeft >= 0 && playerKicksCount >= maxRounds) {
+                endGame();
+                return;
+            }
+            if (opponentScore > playerScore + playerKicksLeft && playerKicksLeft >= 0 && opponentKicksCount >= maxRounds) {
+                endGame();
+                return;
+            }
+        } else {
+            // Sudden death: after both kick, check
+            suddenDeathRound++;
+            if (suddenDeathRound > 0 && (suddenDeathRound % 1 === 0)) {
+                // Check after each complete pair in sudden death
+                const sdPlayerGoals = kickHistory.filter(k => k.kicker === 'player' && k.round >= round - 1 && k.scored).length;
+                const sdOpponentGoals = kickHistory.filter(k => k.kicker === 'opponent' && k.round >= round - 1 && k.scored).length;
+                // Actually simpler: just check totals after both have kicked
+                if (playerScore !== opponentScore && playerKicksCount === opponentKicksCount) {
+                    endGame();
+                    return;
+                }
+            }
+        }
+
+        resetPositions();
+        state = GAME_STATES.PLAYER_KICK;
+    }
+}
+
+function endGame() {
+    state = GAME_STATES.GAME_OVER;
+    resultTimer = 120;
+    if (playerScore > opponentScore) {
+        showResult = `🏆 ${playerTeam.flag} VENCEU!`;
+    } else if (opponentScore > playerScore) {
+        showResult = `😢 ${opponentTeam.flag} VENCEU!`;
+    } else {
+        showResult = "🤝 EMPATE!";
+    }
+    spawnGoalParticles();
+    spawnGoalParticles();
+}
+
+// ==================== DRAW ====================
+function drawPixelRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+}
+
+function drawField() {
+    // Sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 300);
+    skyGrad.addColorStop(0, '#1a5276');
+    skyGrad.addColorStop(1, '#2ecc71');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, BASE_W, 300);
+
+    // Grass
+    ctx.fillStyle = '#27ae60';
+    ctx.fillRect(0, 280, BASE_W, BASE_H - 280);
+
+    // Grass stripes
+    for (let i = 0; i < 20; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#2ecc71' : '#27ae60';
+        ctx.fillRect(0, 280 + i * 20, BASE_W, 20);
+    }
+
+    // Goal posts (pixel style)
+    // Back net
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(130, 140, 220, 130);
+
+    // Net lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    for (let x = 130; x <= 350; x += 15) {
+        ctx.beginPath();
+        ctx.moveTo(x, 140);
+        ctx.lineTo(x, 270);
+        ctx.stroke();
+    }
+    for (let y = 140; y <= 270; y += 15) {
+        ctx.beginPath();
+        ctx.moveTo(130, y);
+        ctx.lineTo(350, y);
+        ctx.stroke();
+    }
+
+    // Posts
+    drawPixelRect(125, 135, 8, 140, '#ffffff');  // Left post
+    drawPixelRect(347, 135, 8, 140, '#ffffff');  // Right post
+    drawPixelRect(125, 135, 230, 8, '#ffffff');  // Crossbar
+
+    // Post shadows
+    drawPixelRect(127, 137, 4, 136, '#cccccc');
+    drawPixelRect(349, 137, 4, 136, '#cccccc');
+
+    // Penalty spot
+    drawPixelRect(238, 430, 4, 4, '#ffffff');
+
+    // Penalty arc
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(240, 320, 60, 0, Math.PI, false);
+    ctx.stroke();
+
+    // Penalty box
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(100, 270, 280, 130);
+
+    // Small box
+    ctx.strokeRect(160, 270, 160, 60);
+
+    // Crowd (pixel)
+    drawCrowd();
+}
+
+function drawCrowd() {
+    const colors = ['#e74c3c', '#3498db', '#f39c12', '#2ecc71', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
+    for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 40; col++) {
+            const cx = col * 12 + (row % 2) * 6;
+            const cy = 20 + row * 28;
+            // Head
+            ctx.fillStyle = colors[(col + row * 3) % colors.length];
+            ctx.fillRect(cx, cy + 8, 8, 12);
+            // Head
+            ctx.fillStyle = '#f5d6ba';
+            ctx.fillRect(cx + 1, cy, 6, 8);
+        }
+    }
+}
+
+function drawPlayer(x, y, team, isGoalkeeper, facingUp) {
+    const px = Math.floor(x);
+    const py = Math.floor(y);
+    const c = team.colors;
+
+    if (isGoalkeeper) {
+        // Goalkeeper is wider stance
+        // Body
+        drawPixelRect(px - 8, py - 10, 16, 16, c.secondary); // shirt
+        // Arms spread
+        drawPixelRect(px - 16, py - 8, 10, 6, c.secondary);
+        drawPixelRect(px + 6, py - 8, 10, 6, c.secondary);
+        // Gloves
+        drawPixelRect(px - 18, py - 8, 4, 6, '#ffdf00');
+        drawPixelRect(px + 14, py - 8, 4, 6, '#ffdf00');
+        // Shorts
+        drawPixelRect(px - 6, py + 6, 12, 8, c.primary);
+        // Legs
+        drawPixelRect(px - 6, py + 14, 4, 8, c.skin);
+        drawPixelRect(px + 2, py + 14, 4, 8, c.skin);
+        // Boots
+        drawPixelRect(px - 7, py + 22, 6, 4, '#111');
+        drawPixelRect(px + 1, py + 22, 6, 4, '#111');
+        // Head
+        drawPixelRect(px - 5, py - 22, 10, 12, c.skin);
+        // Hair
+        drawPixelRect(px - 5, py - 24, 10, 4, '#222');
+        // Eyes
+        drawPixelRect(px - 3, py - 17, 2, 2, '#000');
+        drawPixelRect(px + 1, py - 17, 2, 2, '#000');
+        // Cap
+        drawPixelRect(px - 6, py - 24, 12, 3, c.primary);
+    } else {
+        // Kicker
+        // Body
+        drawPixelRect(px - 6, py - 10, 12, 14, c.primary);
+        // Arms
+        drawPixelRect(px - 10, py - 8, 5, 5, c.primary);
+        drawPixelRect(px + 5, py - 8, 5, 5, c.primary);
+        // Hands
+        drawPixelRect(px - 10, py - 3, 4, 3, c.skin);
+        drawPixelRect(px + 6, py - 3, 4, 3, c.skin);
+        // Number
+        ctx.fillStyle = c.secondary;
+        ctx.font = '6px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('10', px, py);
+        // Shorts
+        drawPixelRect(px - 5, py + 4, 10, 7, c.secondary);
+        // Legs
+        drawPixelRect(px - 5, py + 11, 4, 8, c.skin);
+        drawPixelRect(px + 1, py + 11, 4, 8, c.skin);
+        // Boots
+        drawPixelRect(px - 6, py + 19, 6, 4, '#111');
+        drawPixelRect(px + 0, py + 19, 6, 4, '#111');
+        // Head
+        drawPixelRect(px - 5, py - 22, 10, 12, c.skin);
+        // Hair
+        drawPixelRect(px - 5, py - 24, 10, 5, '#222');
+        // Eyes
+        if (facingUp) {
+            // Looking up / forward
+            drawPixelRect(px - 3, py - 18, 2, 2, '#000');
+            drawPixelRect(px + 1, py - 18, 2, 2, '#000');
+        } else {
+            drawPixelRect(px - 3, py - 16, 2, 2, '#000');
+            drawPixelRect(px + 1, py - 16, 2, 2, '#000');
+        }
+    }
+}
+
+function drawBall(x, y, size) {
+    const s = size || 6;
+    const px = Math.floor(x);
+    const py = Math.floor(y);
+
+    // Ball shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(px - s + 2, py + s + 2, s * 2 - 2, 3);
+
+    // White base
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(px - s, py - s, s * 2, s * 2);
+
+    // Pentagon pattern
+    ctx.fillStyle = '#333';
+    ctx.fillRect(px - 2, py - 2, 4, 4);
+    ctx.fillRect(px - s + 1, py - s + 1, 3, 3);
+    ctx.fillRect(px + s - 4, py - s + 1, 3, 3);
+    ctx.fillRect(px - s + 1, py + s - 4, 3, 3);
+    ctx.fillRect(px + s - 4, py + s - 4, 3, 3);
+}
+
+function drawScoreboard() {
+    // Background
+    drawPixelRect(60, 95, 360, 45, 'rgba(0,0,0,0.8)');
+    drawPixelRect(62, 97, 356, 41, 'rgba(20,20,50,0.9)');
+
+    ctx.font = 'bold 14px Courier New';
+    ctx.textAlign = 'center';
+
+    // Player team
+    ctx.fillStyle = playerTeam.colors.primary;
+    ctx.fillText(`${playerTeam.flag} ${playerTeam.code}`, 150, 115);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Courier New';
+    ctx.fillText(playerScore, 150, 134);
+
+    // VS / Score
+    ctx.fillStyle = '#e94560';
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText('X', 240, 120);
+
+    // Round
+    ctx.fillStyle = '#aaa';
+    ctx.font = '10px Courier New';
+    if (suddenDeath) {
+        ctx.fillText('MORTE SÚBITA', 240, 134);
+    } else {
+        ctx.fillText(`RODADA ${Math.min(round, maxRounds)}/${maxRounds}`, 240, 134);
+    }
+
+    // Opponent team
+    ctx.fillStyle = opponentTeam.colors.primary;
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillText(`${opponentTeam.flag} ${opponentTeam.code}`, 330, 115);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Courier New';
+    ctx.fillText(opponentScore, 330, 134);
+
+    // Kick history dots
+    drawKickHistory();
+}
+
+function drawKickHistory() {
+    const startX = 100;
+    const y = 85;
+    const dotSize = 6;
+    const gap = 3;
+
+    // Player kicks
+    for (let i = 0; i < maxRounds + (suddenDeath ? suddenDeathRound : 0); i++) {
+        const kick = kickHistory.filter(k => k.kicker === 'player')[i];
+        const dx = startX + i * (dotSize + gap);
+        if (kick) {
+            ctx.fillStyle = kick.scored ? '#2ecc71' : '#e74c3c';
+        } else {
+            ctx.fillStyle = '#444';
+        }
+        ctx.fillRect(dx, y, dotSize, dotSize);
+    }
+
+    // Opponent kicks
+    for (let i = 0; i < maxRounds + (suddenDeath ? suddenDeathRound : 0); i++) {
+        const kick = kickHistory.filter(k => k.kicker === 'opponent')[i];
+        const dx = 280 + i * (dotSize + gap);
+        if (kick) {
+            ctx.fillStyle = kick.scored ? '#2ecc71' : '#e74c3c';
+        } else {
+            ctx.fillStyle = '#444';
+        }
+        ctx.fillRect(dx, y, dotSize, dotSize);
+    }
+}
+
+function drawInstructions() {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(40, 400, 400, 35);
+
+    ctx.fillStyle = '#ffdf00';
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+
+    if (state === GAME_STATES.PLAYER_KICK) {
+        ctx.fillText('🦶 CHUTE! Toque no gol ou nos botões abaixo', 240, 415);
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px Courier New';
+        ctx.fillText('Escolha o canto para chutar', 240, 428);
+    } else if (state === GAME_STATES.PLAYER_SAVE) {
+        ctx.fillText('🧤 DEFENDA! Escolha para onde pular', 240, 415);
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px Courier New';
+        ctx.fillText('Toque no gol ou nos botões abaixo', 240, 428);
+    }
+}
+
+function drawZoneButtons() {
+    if (state !== GAME_STATES.PLAYER_KICK && state !== GAME_STATES.PLAYER_SAVE) return;
+
+    const labels = state === GAME_STATES.PLAYER_KICK
+        ? ['↖️ CE', '⬆️ CC', '↗️ CD', '↙️ BE', '⬇️ BC', '↘️ BD']
+        : ['↖️ CE', '⬆️ CC', '↗️ CD', '↙️ BE', '⬇️ BC', '↘️ BD'];
+
+    for (let i = 0; i < saveZones.length; i++) {
+        const sz = saveZones[i];
+
+        // Button background
+        const isKick = state === GAME_STATES.PLAYER_KICK;
+        ctx.fillStyle = isKick ? 'rgba(233, 69, 96, 0.8)' : 'rgba(52, 152, 219, 0.8)';
+        ctx.fillRect(sz.x1, sz.y1, sz.x2 - sz.x1, sz.y2 - sz.y1);
+
+        // Border
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sz.x1, sz.y1, sz.x2 - sz.x1, sz.y2 - sz.y1);
+
+        // Label
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(labels[i], (sz.x1 + sz.x2) / 2, (sz.y1 + sz.y2) / 2 + 4);
+    }
+
+    // Highlight zones on the goal
+    if (state === GAME_STATES.PLAYER_KICK) {
+        for (const cz of clickZones) {
+            ctx.strokeStyle = 'rgba(233, 69, 96, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cz.x1, cz.y1, cz.x2 - cz.x1, cz.y2 - cz.y1);
+        }
+    } else {
+        for (const cz of clickZones) {
+            ctx.strokeStyle = 'rgba(52, 152, 219, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cz.x1, cz.y1, cz.x2 - cz.x1, cz.y2 - cz.y1);
+        }
+    }
+}
+
+function drawRoleIndicator() {
+    if (state === GAME_STATES.PLAYER_KICK || state === GAME_STATES.PLAYER_KICK_ANIM) {
+        drawPixelRect(150, 445, 180, 25, 'rgba(233, 69, 96, 0.9)');
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('🦶 VOCÊ CHUTA', 240, 462);
+    } else if (state === GAME_STATES.PLAYER_SAVE || state === GAME_STATES.PLAYER_SAVE_ANIM) {
+        drawPixelRect(140, 445, 200, 25, 'rgba(52, 152, 219, 0.9)');
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('🧤 VOCÊ DEFENDE', 240, 462);
+    }
+}
+
+function drawResult() {
+    if (state === GAME_STATES.ROUND_RESULT || state === GAME_STATES.GAME_OVER) {
+        // Dark overlay
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+        // Result box
+        const boxY = 250;
+        drawPixelRect(40, boxY, 400, 80, 'rgba(0,0,0,0.9)');
+        drawPixelRect(42, boxY + 2, 396, 76, 'rgba(20,20,50,0.95)');
+
+        // Result text
+        ctx.fillStyle = '#ffdf00';
+        ctx.font = 'bold 22px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(showResult, 240, boxY + 35);
+
+        // Score
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px Courier New';
+        ctx.fillText(`${playerTeam.code} ${playerScore} x ${opponentScore} ${opponentTeam.code}`, 240, boxY + 60);
+
+        if (resultTimer <= 0) {
+            ctx.fillStyle = '#aaa';
+            ctx.font = '12px Courier New';
+            if (state === GAME_STATES.GAME_OVER) {
+                ctx.fillText('Toque para voltar ao menu', 240, boxY + 90);
+            } else {
+                ctx.fillText('Toque para continuar', 240, boxY + 90);
+            }
+        }
+    }
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / 60;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawGoalFlash() {
+    if (goalFlash > 0) {
+        ctx.fillStyle = `rgba(255, 223, 0, ${goalFlash / 60})`;
+        ctx.fillRect(130, 140, 220, 130);
+    }
+}
+
+// ==================== UPDATE ====================
+function update() {
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].x += particles[i].vx;
+        particles[i].y += particles[i].vy;
+        particles[i].vy += 0.2;
+        particles[i].life--;
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+
+    if (goalFlash > 0) goalFlash--;
+    if (missAnim > 0) missAnim--;
+
+    if (state === GAME_STATES.PLAYER_KICK_ANIM || state === GAME_STATES.PLAYER_SAVE_ANIM) {
+        ballAnim += ballAnimSpeed;
+
+        // Ease out
+        const t = 1 - Math.pow(1 - Math.min(ballAnim, 1), 3);
+        ballX = ballStartX + (ballTargetX - ballStartX) * t;
+        ballY = ballStartY + (ballTargetY - ballStartY) * t;
+
+        // Move goalkeeper
+        const gkT = Math.min(ballAnim * 1.5, 1);
+        goalKeeper.x += (goalKeeper.targetX - goalKeeper.x) * 0.15;
+        goalKeeper.y += (goalKeeper.targetY - goalKeeper.y) * 0.15;
+
+        if (ballAnim >= 1) {
+            ballX = ballTargetX;
+            ballY = ballTargetY;
+
+            if (state === GAME_STATES.PLAYER_KICK_ANIM) {
+                const scored = checkGoal(selectedZone, aiZone);
+                showRoundResult(scored, true);
+            } else {
+                const scored = checkGoal(aiZone, selectedZone);
+                showRoundResult(scored, false);
+            }
+        }
+    }
+
+    if (state === GAME_STATES.ROUND_RESULT || state === GAME_STATES.GAME_OVER) {
+        if (resultTimer > 0) resultTimer--;
+    }
+}
+
+// ==================== GAME LOOP ====================
+function gameLoop() {
+    if (state === GAME_STATES.MENU) return;
+
+    update();
+
+    // Clear
+    ctx.clearRect(0, 0, BASE_W, BASE_H);
+
+    // Draw scene
+    drawField();
+    drawGoalFlash();
+
+    // Draw goalkeeper
+    if (state === GAME_STATES.PLAYER_KICK || state === GAME_STATES.PLAYER_KICK_ANIM) {
+        // AI is goalkeeper (opponent colors)
+        drawPlayer(goalKeeper.x, goalKeeper.y, opponentTeam, true, false);
+        // Player is kicker
+        drawPlayer(kicker.x, kicker.y, playerTeam, false, true);
+    } else if (state === GAME_STATES.PLAYER_SAVE || state === GAME_STATES.PLAYER_SAVE_ANIM) {
+        // Player is goalkeeper
+        drawPlayer(goalKeeper.x, goalKeeper.y, playerTeam, true, false);
+        // AI is kicker (opponent colors)
+        drawPlayer(kicker.x, kicker.y, opponentTeam, false, true);
+    } else {
+        // Default positions for result screen
+        if (isPlayerKicking || state === GAME_STATES.GAME_OVER) {
+            drawPlayer(goalKeeper.x, goalKeeper.y, opponentTeam, true, false);
+            drawPlayer(kicker.x, kicker.y, playerTeam, false, true);
+        } else {
+            drawPlayer(goalKeeper.x, goalKeeper.y, playerTeam, true, false);
+            drawPlayer(kicker.x, kicker.y, opponentTeam, false, true);
+        }
+    }
+
+    // Draw ball
+    if (state === GAME_STATES.PLAYER_KICK || state === GAME_STATES.PLAYER_SAVE) {
+        drawBall(240, 470, 6);
+    } else {
+        drawBall(ballX, ballY, 6);
+    }
+
+    drawParticles();
+    drawScoreboard();
+    drawRoleIndicator();
+    drawInstructions();
+    drawZoneButtons();
+    drawResult();
+
+    requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
+</html>
